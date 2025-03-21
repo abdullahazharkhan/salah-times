@@ -55,6 +55,7 @@ export default function Index() {
   const [school, setSchool] = useState(0);
   const [timings, setTimings] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [khiTime, setKhiTime] = useState<any>(null);
 
   // Countdown states
   const [nextPrayerName, setNextPrayerName] = useState<string>("");
@@ -95,7 +96,8 @@ export default function Index() {
 
     function updateCountdowns() {
       const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Karachi" }));
-
+      console.log(now);
+      setKhiTime(now);
       // Determine the next prayer.
       let nextName = "";
       let smallestDiff = Number.MAX_VALUE;
@@ -158,9 +160,27 @@ export default function Index() {
         setSunriseCountdown(sunriseTime.getTime() - now.getTime());
       }
 
-      // Calculate Midnight countdown (next midnight).
-      const midnightTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
-      setMidnightCountdown(midnightTime.getTime() - now.getTime());
+      if (timings["Midnight"]) {
+        const [hourStr, minuteStr] = timings["Midnight"].split(":");
+        let midnightTime = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          parseInt(hourStr, 10),
+          parseInt(minuteStr, 10)
+        );
+        if (midnightTime < now) {
+          // If today's sunrise has passed, set it to tomorrow.
+          midnightTime = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() + 1,
+            parseInt(hourStr, 10),
+            parseInt(minuteStr, 10)
+          );
+        }
+        setMidnightCountdown(midnightTime.getTime() - now.getTime());
+      }
     }
 
     updateCountdowns();
@@ -209,6 +229,14 @@ export default function Index() {
       </View>
 
       {/* Display next prayer countdown */}
+      {/* <View className="mt-6 w-full bg-[#1e2937] p-4 rounded mx-auto">
+        {timings && nextPrayerName ? (
+          <Text className="text-[#00c871] font-bold text-2xl text-center ">
+            {khiTime} in {formatMs(timeLeftMs)}
+          </Text>
+        ) : null}
+      </View> */}
+      
       <View className="mt-6 w-full bg-[#1e2937] p-4 rounded mx-auto">
         {timings && nextPrayerName ? (
           <Text className="text-[#00c871] font-bold text-2xl text-center ">
@@ -216,7 +244,7 @@ export default function Index() {
           </Text>
         ) : null}
       </View>
-
+      
       {/* Display Sunrise and Midnight countdowns */}
       <View className="mt-4 w-full bg-[#1e2937] p-4 rounded mx-auto">
         {timings && timings["Sunrise"] ? (
