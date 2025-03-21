@@ -1,15 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Text, View, TouchableOpacity, ActivityIndicator, ScrollView } from "react-native";
-// import PushNotification from 'react-native-push-notification';
-
-// PushNotification.createChannel(
-//   {
-//     channelId: "prayer-times", // (required)
-//     channelName: "Prayer Times", // (required)
-//     importance: 4,
-//   },
-//   (created: any) => console.log(`createChannel returned '${created}'`)
-// );
+import moment from "moment-timezone";
 
 // Helper function to convert "HH:MM" time to 12-hour format with AM/PM.
 function convertTo12Hour(time24: string) {
@@ -29,24 +20,10 @@ function formatMs(ms: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  return `${hours.toString().padStart(2, "0")}:${minutes
+    .toString()
+    .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
-
-// Function to update the persistent notification
-// function updateNotification(nextPrayerName: string, timeLeftMs: number, sunriseLeft: number, midnightLeft: number) {
-//   const message = `${nextPrayerName}: ${formatMs(timeLeftMs)}\nSunrise: ${formatMs(sunriseLeft)}\nMidnight: ${formatMs(midnightLeft)}`;
-
-//   PushNotification.localNotification({
-//     channelId: "prayer-times",
-//     title: "Salah Times",
-//     message: message, // This message appears in the notification
-//     ongoing: true,    // Makes it persistent (cannot be swiped away)
-//     autoCancel: false, // Prevent auto canceling
-//     priority: "high",
-//     visibility: "public",
-//     importance: "max",
-//   });
-// }
 
 export default function Index() {
   // 1 = Islamic Sciences Karachi, 4 = Umm al Qura
@@ -55,7 +32,7 @@ export default function Index() {
   const [school, setSchool] = useState(0);
   const [timings, setTimings] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [khiTime, setKhiTime] = useState<any>(null);
+  const [khiTime, setKhiTime] = useState<number>(0);
 
   // Countdown states
   const [nextPrayerName, setNextPrayerName] = useState<string>("");
@@ -95,26 +72,24 @@ export default function Index() {
     const prayerOrder = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
 
     function updateCountdowns() {
-      const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Karachi" }));
-      console.log(now);
-      setKhiTime(now);
-      // Determine the next prayer.
+      // Use moment-timezone to get current time in Karachi.
+      const now = moment.tz("Asia/Karachi");
+      setKhiTime(now.valueOf());
+
       let nextName = "";
       let smallestDiff = Number.MAX_VALUE;
 
       prayerOrder.forEach((prayer) => {
         if (!timings[prayer]) return;
-        const [hourStr, minuteStr] = timings[prayer].split(":");
-        let prayerTime = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-          parseInt(hourStr, 10),
-          parseInt(minuteStr, 10)
+        // Build a moment object for the prayer time in Karachi.
+        const prayerTime = moment.tz(
+          `${now.format("YYYY-MM-DD")} ${timings[prayer]}`,
+          "YYYY-MM-DD HH:mm",
+          "Asia/Karachi"
         );
         // If the prayer time has passed today, skip it.
-        if (prayerTime < now) return;
-        const diff = prayerTime.getTime() - now.getTime();
+        if (prayerTime.isBefore(now)) return;
+        const diff = prayerTime.diff(now);
         if (diff < smallestDiff) {
           smallestDiff = diff;
           nextName = prayer;
@@ -123,15 +98,12 @@ export default function Index() {
 
       // If all today's prayers have passed, choose tomorrow's Fajr.
       if (!nextName) {
-        const [hourStr, minuteStr] = timings["Fajr"].split(":");
-        let tomorrowFajr = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() + 1,
-          parseInt(hourStr, 10),
-          parseInt(minuteStr, 10)
+        const tomorrowFajr = moment.tz(
+          `${now.add(1, "day").format("YYYY-MM-DD")} ${timings["Fajr"]}`,
+          "YYYY-MM-DD HH:mm",
+          "Asia/Karachi"
         );
-        smallestDiff = tomorrowFajr.getTime() - now.getTime();
+        smallestDiff = tomorrowFajr.diff(moment.tz("Asia/Karachi"));
         nextName = "Fajr";
       }
       setNextPrayerName(nextName);
@@ -139,48 +111,24 @@ export default function Index() {
 
       // Calculate Sunrise countdown.
       if (timings["Sunrise"]) {
-        const [hourStr, minuteStr] = timings["Sunrise"].split(":");
-        let sunriseTime = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-          parseInt(hourStr, 10),
-          parseInt(minuteStr, 10)
+        let sunriseTime = moment.tz(
+          `${now.format("YYYY-MM-DD")} ${timings["Sunrise"]}`,
+          "YYYY-MM-DD HH:mm",
+          "Asia/Karachi"
         );
-        if (sunriseTime < now) {
-          // If today's sunrise has passed, set it to tomorrow.
-          sunriseTime = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate() + 1,
-            parseInt(hourStr, 10),
-            parseInt(minuteStr, 10)
+        if (sunriseTime.isBefore(now)) {
+          sunriseTime = moment.tz(
+            `${now.add(1, "day").format("YYYY-MM-DD")} ${timings["Sunrise"]}`,
+            "YYYY-MM-DD HH:mm",
+            "Asia/Karachi"
           );
         }
-        setSunriseCountdown(sunriseTime.getTime() - now.getTime());
+        setSunriseCountdown(sunriseTime.diff(moment.tz("Asia/Karachi")));
       }
 
-      if (timings["Midnight"]) {
-        const [hourStr, minuteStr] = timings["Midnight"].split(":");
-        let midnightTime = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-          parseInt(hourStr, 10),
-          parseInt(minuteStr, 10)
-        );
-        if (midnightTime < now) {
-          // If today's sunrise has passed, set it to tomorrow.
-          midnightTime = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate() + 1,
-            parseInt(hourStr, 10),
-            parseInt(minuteStr, 10)
-          );
-        }
-        setMidnightCountdown(midnightTime.getTime() - now.getTime());
-      }
+      // Calculate Midnight countdown (next midnight).
+      const midnightTime = moment.tz("Asia/Karachi").endOf("day").add(1, "second");
+      setMidnightCountdown(midnightTime.diff(moment.tz("Asia/Karachi")));
     }
 
     updateCountdowns();
@@ -189,7 +137,12 @@ export default function Index() {
   }, [timings]);
 
   return (
-    <ScrollView className="bg-[#111728] flex-1 items-center p-4">
+    <ScrollView contentContainerStyle={{
+      backgroundColor: "#111728",
+      flexGrow: 1,
+      alignItems: "center",
+      padding: 16,
+    }}>
       <View className="w-full bg-[#00c871] py-6">
         <Text className="text-white font-extrabold text-5xl text-center">
           Salah Times
@@ -228,15 +181,16 @@ export default function Index() {
         </TouchableOpacity>
       </View>
 
-      {/* Display next prayer countdown */}
-      {/* <View className="mt-6 w-full bg-[#1e2937] p-4 rounded mx-auto">
+      {/* Display current Karachi time */}
+      <View className="mt-6 w-full bg-[#1e2937] p-4 rounded mx-auto">
         {timings && nextPrayerName ? (
           <Text className="text-[#00c871] font-bold text-2xl text-center ">
-            {khiTime} in {formatMs(timeLeftMs)}
+            Karachi time: {khiTime ? moment(khiTime).format("HH:mm:ss") : ""}
           </Text>
         ) : null}
-      </View> */}
-      
+      </View>
+
+      {/* Display next prayer countdown */}
       <View className="mt-6 w-full bg-[#1e2937] p-4 rounded mx-auto">
         {timings && nextPrayerName ? (
           <Text className="text-[#00c871] font-bold text-2xl text-center ">
@@ -244,21 +198,21 @@ export default function Index() {
           </Text>
         ) : null}
       </View>
-      
+
       {/* Display Sunrise and Midnight countdowns */}
       <View className="mt-4 w-full bg-[#1e2937] p-4 rounded mx-auto">
         {timings && timings["Sunrise"] ? (
-          <Text className="text-[#00c871] font-bold text-2xl text-center  ">
+          <Text className="text-[#00c871] font-bold text-2xl text-center">
             Sunrise in {formatMs(sunriseCountdown)}
           </Text>
         ) : null}
-        <Text className="text-[#00c871] font-bold text-2xl text-center mt-2  ">
+        <Text className="text-[#00c871] font-bold text-2xl text-center mt-2">
           Midnight in {formatMs(midnightCountdown)}
         </Text>
       </View>
 
       {/* Displaying the timings */}
-      <View className="mt-6 w-full">
+      <View className="my-6 w-full">
         {loading ? (
           <ActivityIndicator size="large" color="#00c871" />
         ) : timings ? (
